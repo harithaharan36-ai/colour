@@ -1,0 +1,1761 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#070b16" />
+  <title>Target Rush — Hand Tracking Arcade Game</title>
+  <style>
+    :root {
+      --ink: #f8fbff;
+      --muted: #9eacc6;
+      --panel: rgba(14, 21, 39, .84);
+      --panel-strong: rgba(12, 19, 35, .96);
+      --line: rgba(255,255,255,.12);
+      --cyan: #63e9ff;
+      --blue: #7293ff;
+      --mint: #4cf1ad;
+      --yellow: #ffd95c;
+      --red: #ff687d;
+      --purple: #b688ff;
+      --shadow: 0 26px 70px rgba(0,0,0,.42);
+      --round: 28px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; min-width: 320px; min-height: 100%; margin: 0; }
+    body {
+      overflow: hidden;
+      color: var(--ink);
+      background: #050812;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; }
+    button:focus-visible { outline: 3px solid var(--cyan); outline-offset: 4px; }
+    button, .target { -webkit-tap-highlight-color: transparent; }
+
+    #app {
+      position: relative;
+      min-height: 100vh;
+      min-height: 100svh;
+      overflow: hidden;
+      isolation: isolate;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(84, 90, 214, .20), transparent 33%),
+        radial-gradient(circle at 83% 88%, rgba(22, 207, 186, .11), transparent 34%),
+        linear-gradient(135deg, #070b18 0%, #101936 49%, #080c1a 100%);
+    }
+    #app::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+      opacity: .42;
+      background-image:
+        linear-gradient(rgba(123, 157, 255, .055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(123, 157, 255, .055) 1px, transparent 1px);
+      background-size: 46px 46px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,.8), transparent 92%);
+    }
+    #app::after {
+      content: "";
+      position: absolute;
+      width: min(54vw, 740px);
+      aspect-ratio: 1;
+      top: -29%;
+      right: -17%;
+      z-index: -1;
+      border: 1px solid rgba(114, 147, 255, .12);
+      border-radius: 50%;
+      box-shadow: 0 0 0 60px rgba(114, 147, 255, .025), 0 0 0 120px rgba(114, 147, 255, .018);
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: scale(1.012);
+      transition: opacity .32s ease, transform .32s ease, visibility .32s;
+    }
+    .screen.active {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: scale(1);
+    }
+
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      border: 1px solid rgba(99, 233, 255, .35);
+      border-radius: 12px;
+      background: linear-gradient(145deg, rgba(99,233,255,.18), rgba(114,147,255,.08));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 0 22px rgba(99,233,255,.11);
+      font-size: 20px;
+    }
+    .brand-name {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 850;
+      letter-spacing: .18em;
+      color: #e8f4ff;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .17em;
+    }
+    .eyebrow::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 14px currentColor;
+    }
+
+    /* Menu */
+    #menuScreen {
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+    }
+    .menu-top {
+      position: absolute;
+      top: 26px;
+      left: clamp(22px, 5vw, 70px);
+    }
+    .menu-panel {
+      width: min(655px, 100%);
+      text-align: center;
+      padding: clamp(34px, 6vw, 62px);
+      border: 1px solid rgba(171, 195, 255, .16);
+      border-radius: 34px;
+      background: linear-gradient(145deg, rgba(23,32,60,.88), rgba(9,14,30,.78));
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.11);
+      backdrop-filter: blur(16px);
+      position: relative;
+      overflow: hidden;
+    }
+    .menu-panel::before {
+      content: "";
+      position: absolute;
+      width: 260px;
+      height: 260px;
+      top: -185px;
+      left: 50%;
+      border-radius: 50%;
+      background: rgba(99,233,255,.13);
+      transform: translateX(-50%);
+      filter: blur(8px);
+    }
+    .menu-target {
+      position: relative;
+      width: 88px;
+      height: 88px;
+      margin: 0 auto 20px;
+      border: 2px solid var(--cyan);
+      border-radius: 50%;
+      box-shadow: 0 0 0 11px rgba(99,233,255,.11), 0 0 0 23px rgba(99,233,255,.055), 0 0 32px rgba(99,233,255,.42);
+    }
+    .menu-target::before, .menu-target::after {
+      content: "";
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+    }
+    .menu-target::before { width: 43px; height: 43px; border: 2px solid #8af0ff; }
+    .menu-target::after { width: 12px; height: 12px; background: var(--red); box-shadow: 0 0 18px var(--red); }
+    .menu-title {
+      position: relative;
+      margin: 11px 0 8px;
+      font-size: clamp(46px, 8vw, 80px);
+      line-height: .9;
+      letter-spacing: -.065em;
+      font-weight: 950;
+      background: linear-gradient(105deg, #fff 18%, #b8f4ff 50%, #d0c2ff 92%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .menu-subtitle {
+      position: relative;
+      max-width: 410px;
+      margin: 0 auto 28px;
+      color: #b5c2da;
+      line-height: 1.55;
+      font-size: 16px;
+    }
+    .menu-actions { position: relative; display: grid; justify-items: center; gap: 13px; }
+    .primary-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      min-height: 58px;
+      padding: 15px 25px;
+      color: #07131b;
+      background: linear-gradient(105deg, #7af4ff, #7bb5ff 55%, #c6b1ff);
+      border: 0;
+      border-radius: 16px;
+      box-shadow: 0 12px 28px rgba(76, 201, 255, .24), inset 0 1px 0 rgba(255,255,255,.7);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 950;
+      letter-spacing: .08em;
+      transition: transform .18s ease, filter .18s ease, box-shadow .18s ease;
+    }
+    .primary-button:hover { transform: translateY(-3px); filter: brightness(1.07); box-shadow: 0 16px 32px rgba(76,201,255,.35); }
+    .primary-button:active { transform: translateY(0) scale(.98); }
+    .primary-button .arrow { font-size: 22px; line-height: 0; }
+    .how-button, .back-button, .quiet-button {
+      color: #c7d5ed;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      transition: color .18s, border-color .18s, background .18s;
+    }
+    .how-button { padding: 10px 13px; }
+    .how-button:hover, .back-button:hover, .quiet-button:hover { color: var(--cyan); border-color: rgba(99,233,255,.28); background: rgba(99,233,255,.06); }
+    .privacy-note {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 14px 0 0;
+      color: #73829f;
+      font-size: 11px;
+      font-weight: 650;
+    }
+    .privacy-lock { color: var(--mint); font-size: 14px; }
+
+    /* Rules */
+    #rulesScreen {
+      align-items: flex-start;
+      justify-content: center;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 25px 22px 34px;
+    }
+    .rules-wrap {
+      width: min(1090px, 100%);
+      margin: auto;
+      padding: 14px 0;
+    }
+    .rules-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 13px;
+    }
+    .back-button { padding: 10px 12px; }
+    .rules-mini-note {
+      color: #8190ad;
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: .07em;
+    }
+    .rules-panel {
+      position: relative;
+      overflow: hidden;
+      padding: clamp(22px, 3.5vw, 40px);
+      border: 1px solid rgba(161,185,245,.18);
+      border-radius: 30px;
+      background: linear-gradient(145deg, rgba(20,30,58,.94), rgba(8,14,29,.94));
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.1);
+    }
+    .rules-panel::after {
+      content: "";
+      position: absolute;
+      width: 330px;
+      height: 330px;
+      right: -155px;
+      top: -170px;
+      border-radius: 50%;
+      pointer-events: none;
+      background: radial-gradient(circle, rgba(99,233,255,.14), transparent 68%);
+    }
+    .rules-heading {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .heading-line { height: 1px; background: linear-gradient(90deg, transparent, rgba(99,233,255,.44)); }
+    .heading-line.right { background: linear-gradient(90deg, rgba(99,233,255,.44), transparent); }
+    .rules-game-name { color: #d7e7ff; font-size: 12px; font-weight: 900; letter-spacing: .15em; }
+    .rules-title { margin: 7px 0 0; font-size: clamp(25px, 4vw, 39px); font-weight: 950; letter-spacing: -.045em; }
+    .rules-title span { color: var(--yellow); }
+    .rule-grid {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 11px;
+    }
+    .rule-card {
+      min-height: 134px;
+      padding: 16px 15px 14px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 17px;
+      background: rgba(3,8,21,.42);
+      transition: transform .18s, border-color .18s, background .18s;
+    }
+    .rule-card:hover { transform: translateY(-3px); border-color: rgba(99,233,255,.34); background: rgba(21,37,70,.48); }
+    .rule-icon { display: block; margin-bottom: 8px; font-size: 28px; line-height: 1; }
+    .rule-label { display: block; margin-bottom: 7px; color: #f2f7ff; font-size: 12px; font-weight: 950; letter-spacing: .08em; }
+    .rule-description { margin: 0; color: #aebbd1; font-size: 12px; font-weight: 590; line-height: 1.4; }
+    .rule-card.point .rule-label { color: var(--cyan); }
+    .rule-card.pinch .rule-label { color: var(--mint); }
+    .rule-card.follow .rule-label { color: var(--yellow); }
+    .rule-card.wrong .rule-label { color: var(--red); }
+    .rule-card.lives .rule-label { color: #ff8d9e; }
+    .rule-card.time .rule-label { color: #ffda62; }
+    .rule-card.goal .rule-label { color: #c9adff; }
+    .rule-card.goal { grid-column: span 2; }
+    .quick-guide {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px 20px;
+      margin: 17px 0 15px;
+      padding: 13px 16px;
+      border-top: 1px solid rgba(255,255,255,.1);
+      border-bottom: 1px solid rgba(255,255,255,.1);
+      color: #dceaff;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .085em;
+    }
+    .quick-guide b { color: var(--cyan); }
+    .quick-guide .avoid { color: #ff8e9e; }
+    .level-overview {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .level-card {
+      min-height: 80px;
+      padding: 12px 13px;
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 14px;
+      background: rgba(255,255,255,.035);
+    }
+    .level-card .level-dot { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 950; letter-spacing: .07em; }
+    .level-card p { margin: 0; color: #aebbd1; font-size: 11px; line-height: 1.35; }
+    .level-card.l1 .level-dot { color: var(--mint); }
+    .level-card.l2 .level-dot { color: var(--yellow); }
+    .level-card.l3 .level-dot { color: var(--red); }
+    .level-card.total { background: linear-gradient(135deg, rgba(255,217,92,.1), rgba(255,255,255,.03)); }
+    .level-card.total .level-dot { color: var(--yellow); }
+    .rules-action { position: relative; z-index: 1; text-align: center; }
+    .ready-button { min-width: min(315px, 100%); }
+    .rules-reassurance { margin: 9px 0 0; color: #7584a0; font-size: 10px; font-weight: 650; }
+
+    /* Camera setup */
+    #setupScreen {
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+    }
+    .setup-brand { position: absolute; top: 24px; left: clamp(22px, 4vw, 58px); }
+    .setup-shell {
+      display: grid;
+      grid-template-columns: minmax(290px, 1.12fr) minmax(290px, .88fr);
+      width: min(1030px, 100%);
+      overflow: hidden;
+      border: 1px solid rgba(162,187,244,.17);
+      border-radius: 28px;
+      background: rgba(10,17,34,.87);
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.1);
+      backdrop-filter: blur(16px);
+    }
+    .camera-stage {
+      position: relative;
+      min-height: 440px;
+      overflow: hidden;
+      background: #050914;
+    }
+    .camera-stage::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(4,8,20,.05), rgba(4,8,20,.52)), repeating-linear-gradient(0deg, transparent 0 3px, rgba(99,233,255,.035) 3px 4px);
+    }
+    #cameraVideo {
+      position: absolute;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      opacity: .85;
+    }
+    .video-placeholder {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: #71809d;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 750;
+      letter-spacing: .05em;
+    }
+    .video-placeholder .camera-emoji { display: block; margin-bottom: 12px; font-size: 38px; }
+    .camera-live-badge {
+      position: absolute;
+      z-index: 2;
+      top: 16px; left: 16px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 10px;
+      color: #d9f8ee;
+      border: 1px solid rgba(80,243,174,.25);
+      border-radius: 999px;
+      background: rgba(4,20,19,.62);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .12em;
+    }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 10px var(--mint); }
+    .calibration-ring {
+      position: absolute;
+      z-index: 2;
+      top: 50%; left: 50%;
+      width: 112px; height: 112px;
+      border: 2px solid rgba(99,233,255,.92);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 0 13px rgba(99,233,255,.10), 0 0 24px rgba(99,233,255,.32);
+      transition: border-color .2s, box-shadow .2s, transform .2s;
+    }
+    .calibration-ring::before, .calibration-ring::after {
+      content: "";
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .calibration-ring::before { width: 50%; height: 2px; background: rgba(99,233,255,.9); }
+    .calibration-ring::after { width: 2px; height: 50%; background: rgba(99,233,255,.9); }
+    .calibration-ring.in-range { border-color: var(--mint); box-shadow: 0 0 0 17px rgba(76,241,173,.12), 0 0 35px rgba(76,241,173,.50); transform: translate(-50%, -50%) scale(.92); }
+    .camera-corners { position: absolute; z-index: 2; inset: 15px; pointer-events: none; }
+    .camera-corners::before, .camera-corners::after { content: ""; position: absolute; width: 24px; height: 24px; border-color: rgba(99,233,255,.75); }
+    .camera-corners::before { top: 0; left: 0; border-top: 2px solid; border-left: 2px solid; }
+    .camera-corners::after { right: 0; bottom: 0; border-right: 2px solid; border-bottom: 2px solid; }
+    .setup-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: clamp(30px, 5vw, 55px);
+    }
+    .setup-step-label { color: var(--cyan); font-size: 11px; font-weight: 950; letter-spacing: .15em; }
+    .setup-title { margin: 12px 0 10px; font-size: clamp(30px, 4vw, 47px); line-height: .98; letter-spacing: -.055em; }
+    .setup-description { min-height: 44px; margin: 0; color: #a9b8d1; font-size: 14px; line-height: 1.55; }
+    .cal-steps { display: grid; gap: 10px; margin: 25px 0 23px; }
+    .cal-step {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      color: #70809e;
+      font-size: 12px;
+      font-weight: 760;
+      transition: color .2s;
+    }
+    .cal-step .step-number {
+      display: inline-grid;
+      place-items: center;
+      width: 23px; height: 23px;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 50%;
+      color: #98a6bf;
+      font-size: 10px;
+    }
+    .cal-step.active { color: #e3f8ff; }
+    .cal-step.active .step-number { color: #07131b; border-color: var(--cyan); background: var(--cyan); box-shadow: 0 0 12px rgba(99,233,255,.45); }
+    .cal-step.done { color: var(--mint); }
+    .cal-step.done .step-number { color: #062015; border-color: var(--mint); background: var(--mint); }
+    .setup-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 10px 12px;
+      color: #d9e6fb;
+      border: 1px solid rgba(99,233,255,.14);
+      border-radius: 12px;
+      background: rgba(99,233,255,.06);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .status-spinner { width: 14px; height: 14px; flex: 0 0 auto; border: 2px solid rgba(99,233,255,.24); border-top-color: var(--cyan); border-radius: 50%; animation: spin .8s linear infinite; }
+    .setup-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
+    .setup-actions .primary-button { min-height: 46px; padding: 11px 16px; font-size: 11px; }
+    .quiet-button { padding: 11px 13px; border-color: rgba(255,255,255,.12); font-size: 10px; }
+    .setup-privacy { margin: 16px 0 0; color: #697895; font-size: 10px; line-height: 1.4; }
+
+    /* Countdown */
+    #countdownScreen { align-items: center; justify-content: center; background: rgba(2,6,15,.58); backdrop-filter: blur(8px); }
+    .countdown-panel { text-align: center; }
+    .countdown-level { color: var(--mint); font-size: 12px; font-weight: 950; letter-spacing: .17em; }
+    #countdownNumber {
+      min-width: 270px;
+      margin: 8px 0 4px;
+      color: white;
+      font-size: clamp(120px, 23vw, 250px);
+      font-weight: 950;
+      letter-spacing: -.13em;
+      line-height: .85;
+      text-shadow: 0 0 55px rgba(99,233,255,.56);
+      animation: countdownPop .8s both;
+    }
+    .countdown-help { color: #b5c4dd; font-size: 13px; font-weight: 700; }
+
+    /* Game */
+    #gameScreen { overflow: hidden; }
+    .game-grid { position: absolute; inset: 0; opacity: .65; background-image: linear-gradient(rgba(122,155,255,.065) 1px,transparent 1px), linear-gradient(90deg,rgba(122,155,255,.065) 1px,transparent 1px); background-size: 48px 48px; }
+    .game-grid::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at center, transparent 32%, rgba(4,8,18,.5)); }
+    .game-hud {
+      position: absolute;
+      z-index: 5;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px clamp(17px, 3vw, 42px);
+      pointer-events: none;
+    }
+    .game-brand { padding-top: 4px; }
+    .game-brand .brand-mark { width: 30px; height: 30px; border-radius: 9px; font-size: 15px; }
+    .game-brand .brand-name { gap: 8px; font-size: 10px; }
+    .hud-stats { display: flex; gap: 8px; }
+    .stat-card {
+      min-width: 91px;
+      padding: 9px 12px 8px;
+      border: 1px solid rgba(207,223,255,.17);
+      border-radius: 13px;
+      background: rgba(5,11,27,.70);
+      box-shadow: 0 9px 20px rgba(0,0,0,.16);
+      backdrop-filter: blur(9px);
+    }
+    .stat-card .stat-label { display: block; margin-bottom: 2px; color: #8797b4; font-size: 8px; font-weight: 900; letter-spacing: .12em; }
+    .stat-card .stat-value { color: #f3f8ff; font-size: 18px; font-weight: 950; line-height: 1; letter-spacing: -.04em; }
+    .stat-card.pick-time { min-width: 97px; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
+    .stat-card.pick-time .stat-value { color: var(--yellow); }
+    .stat-card.pick-time.urgent { border-color: rgba(255,104,125,.72); background: rgba(62,10,27,.79); animation: timerPulse .55s ease-in-out infinite alternate; }
+    .stat-card.pick-time.urgent .stat-value { color: #ff9aaa; }
+    .stat-card.score .stat-value { color: var(--cyan); }
+    .stat-card.lives { min-width: 105px; }
+    #livesValue { color: #ff8a99; font-size: 15px; letter-spacing: 1px; white-space: nowrap; }
+    .instruction-wrap {
+      position: absolute;
+      z-index: 4;
+      top: 82px;
+      left: 50%;
+      width: min(510px, calc(100% - 36px));
+      transform: translateX(-50%);
+      text-align: center;
+      pointer-events: none;
+    }
+    .level-tag { display: inline-flex; align-items: center; justify-content: center; min-height: 25px; padding: 5px 10px; color: #aebbd2; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; background: rgba(5,10,24,.72); font-size: 9px; font-weight: 900; letter-spacing: .13em; }
+    .instruction-card {
+      margin-top: 7px;
+      padding: 13px 20px 14px;
+      border: 1px solid rgba(99,233,255,.31);
+      border-radius: 16px;
+      background: rgba(8,16,35,.87);
+      box-shadow: 0 13px 28px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.08);
+      backdrop-filter: blur(9px);
+    }
+    .instruction-kicker { display: block; margin-bottom: 4px; color: #8b9bb7; font-size: 9px; font-weight: 850; letter-spacing: .14em; }
+    #instructionText { display: block; color: #fff; font-size: clamp(16px, 2.4vw, 24px); font-weight: 950; letter-spacing: -.035em; }
+    #instructionText em { color: var(--required, var(--cyan)); font-style: normal; }
+    .game-board { position: absolute; inset: 0; z-index: 2; overflow: hidden; }
+    #targetLayer { position: absolute; inset: 0; }
+    .target {
+      --target: #63e9ff;
+      --target-shadow: rgba(99,233,255,.54);
+      position: absolute;
+      display: grid;
+      place-items: center;
+      width: clamp(65px, 8.5vw, 104px);
+      aspect-ratio: 1;
+      padding: 0;
+      color: white;
+      border: 2px solid rgba(255,255,255,.86);
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 34% 27%, rgba(255,255,255,.8) 0 4%, transparent 5%),
+        radial-gradient(circle at center, color-mix(in srgb, var(--target) 96%, white) 0 29%, var(--target) 30% 60%, color-mix(in srgb, var(--target) 70%, #070b18) 100%);
+      box-shadow: 0 0 0 7px color-mix(in srgb, var(--target) 13%, transparent), 0 0 31px var(--target-shadow), inset 0 -10px 17px rgba(0,0,0,.18), inset 0 2px 7px rgba(255,255,255,.42);
+      cursor: pointer;
+      transition: transform .15s ease, filter .15s ease, opacity .15s ease;
+      animation: targetEnter .28s cubic-bezier(.2,.9,.35,1.3) both, targetFloat 2.2s ease-in-out infinite alternate;
+    }
+    .target::before { content: ""; width: 43%; aspect-ratio: 1; border: 2px solid rgba(5,12,25,.55); border-radius: 50%; box-shadow: 0 0 0 5px rgba(255,255,255,.17); }
+    .target::after { content: ""; position: absolute; width: 12%; aspect-ratio: 1; border-radius: 50%; background: rgba(5,12,25,.75); }
+    .target:hover { transform: scale(1.11); filter: brightness(1.13); }
+    .target.hit { animation: targetHit .32s ease-out forwards; pointer-events: none; }
+    .target.miss { animation: targetMiss .35s ease-out forwards; pointer-events: none; }
+    .round-status {
+      position: absolute;
+      z-index: 4;
+      left: 21px;
+      bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 12px;
+      color: #9eafc8;
+      border: 1px solid rgba(255,255,255,.11);
+      border-radius: 12px;
+      background: rgba(6,12,26,.65);
+      font-size: 10px;
+      font-weight: 780;
+      letter-spacing: .04em;
+      backdrop-filter: blur(8px);
+    }
+    .round-status strong { color: #f3f8ff; }
+    .tracker-chip {
+      position: absolute;
+      z-index: 4;
+      right: 22px;
+      bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 9px 7px 7px;
+      color: #aec2dc;
+      border: 1px solid rgba(255,255,255,.11);
+      border-radius: 13px;
+      background: rgba(6,12,26,.71);
+      font-size: 9px;
+      font-weight: 850;
+      letter-spacing: .07em;
+      backdrop-filter: blur(8px);
+    }
+    .hud-camera-frame { position: relative; width: 34px; height: 26px; overflow: hidden; border: 1px solid rgba(99,233,255,.35); border-radius: 6px; background: #07111c; }
+    #hudCamera { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); opacity: .82; }
+    .memory-curtain {
+      position: absolute;
+      z-index: 6;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(3,8,19,.52);
+      backdrop-filter: blur(5px);
+      pointer-events: none;
+    }
+    .memory-curtain.show { display: flex; }
+    .memory-prompt { display: grid; justify-items: center; gap: 13px; padding: 27px 38px; border: 1px solid rgba(198,174,255,.37); border-radius: 24px; background: rgba(12,16,38,.93); box-shadow: 0 20px 45px rgba(0,0,0,.35); }
+    .memory-prompt small { color: #bfaaff; font-size: 11px; font-weight: 950; letter-spacing: .17em; }
+    .memory-color-orb { width: 83px; aspect-ratio: 1; border: 3px solid rgba(255,255,255,.8); border-radius: 50%; background: var(--memory-color, var(--purple)); box-shadow: 0 0 35px var(--memory-color, var(--purple)); }
+    .memory-prompt b { color: white; font-size: 22px; letter-spacing: .03em; }
+    .level-flash {
+      position: absolute;
+      z-index: 9;
+      inset: 0;
+      display: none;
+      place-items: center;
+      background: rgba(3,8,18,.72);
+      backdrop-filter: blur(5px);
+    }
+    .level-flash.show { display: grid; }
+    .flash-box { text-align: center; animation: levelFlash .8s ease both; }
+    .flash-box .flash-icon { display: block; margin-bottom: 10px; font-size: 49px; }
+    .flash-box small { display: block; margin-bottom: 7px; color: var(--cyan); font-size: 11px; font-weight: 950; letter-spacing: .17em; }
+    .flash-box b { display: block; font-size: clamp(32px, 6vw, 55px); letter-spacing: -.06em; }
+    .flash-box p { margin: 8px 0 0; color: #bdcbe1; font-size: 13px; font-weight: 700; }
+
+    /* End screen */
+    #endScreen { align-items: center; justify-content: center; padding: 25px; background: rgba(4,8,18,.55); backdrop-filter: blur(12px); }
+    .end-card {
+      width: min(480px, 100%);
+      padding: 39px 35px 33px;
+      text-align: center;
+      border: 1px solid rgba(170,196,255,.2);
+      border-radius: 27px;
+      background: linear-gradient(150deg, rgba(24,37,70,.96), rgba(7,13,28,.98));
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.1);
+    }
+    #endIcon { display: block; margin-bottom: 9px; font-size: 52px; }
+    .end-overline { color: var(--cyan); font-size: 11px; font-weight: 950; letter-spacing: .16em; }
+    #endTitle { margin: 9px 0 6px; font-size: clamp(36px, 7vw, 57px); letter-spacing: -.06em; line-height: .95; }
+    #endMessage { margin: 0 auto 20px; max-width: 320px; color: #afbdd5; font-size: 13px; line-height: 1.5; }
+    .end-score { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 0 0 23px; overflow: hidden; border: 1px solid rgba(255,255,255,.1); border-radius: 15px; background: rgba(255,255,255,.1); }
+    .end-score > div { padding: 14px; background: rgba(4,10,24,.67); }
+    .end-score span { display: block; color: #8494b0; font-size: 9px; font-weight: 900; letter-spacing: .12em; }
+    .end-score b { display: block; margin-top: 3px; color: #f2f8ff; font-size: 25px; letter-spacing: -.04em; }
+    .end-score #finalScore { color: var(--yellow); }
+    .end-actions { display: grid; gap: 9px; justify-items: center; }
+    .end-actions .primary-button { width: 100%; }
+
+    /* Pointer, celebratory feedback */
+    #handCursor {
+      position: fixed;
+      z-index: 50;
+      display: none;
+      width: 39px;
+      height: 39px;
+      border: 2px solid var(--cyan);
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 0 7px rgba(99,233,255,.12), 0 0 24px rgba(99,233,255,.64);
+      transition: width .09s, height .09s, border-color .09s, box-shadow .09s;
+    }
+    #handCursor::before, #handCursor::after { content: ""; position: absolute; top: 50%; left: 50%; background: var(--cyan); transform: translate(-50%, -50%); }
+    #handCursor::before { width: 52%; height: 1px; }
+    #handCursor::after { width: 1px; height: 52%; }
+    #handCursor.pinching { width: 27px; height: 27px; border-color: var(--mint); box-shadow: 0 0 0 9px rgba(76,241,173,.18), 0 0 29px rgba(76,241,173,.75); }
+    #handCursor.pinching::before, #handCursor.pinching::after { background: var(--mint); }
+    #toast {
+      position: fixed;
+      z-index: 60;
+      top: 144px;
+      left: 50%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 15px;
+      color: white;
+      border: 1px solid rgba(255,255,255,.23);
+      border-radius: 999px;
+      background: rgba(8,15,32,.94);
+      box-shadow: 0 12px 28px rgba(0,0,0,.28);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .05em;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -14px);
+      transition: opacity .18s, transform .18s;
+    }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+    #toast.good { border-color: rgba(76,241,173,.55); color: #bcffe1; }
+    #toast.bad { border-color: rgba(255,104,125,.58); color: #ffbdc6; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes countdownPop { 0% { opacity: 0; transform: scale(.48); } 38% { opacity: 1; transform: scale(1.09); } 100% { opacity: 1; transform: scale(1); } }
+    @keyframes targetEnter { from { opacity: 0; transform: scale(.35); } to { opacity: 1; transform: scale(1); } }
+    @keyframes targetFloat { to { translate: 0 -5px; } }
+    @keyframes targetHit { 0% { transform: scale(1); opacity: 1; } 55% { transform: scale(1.35); filter: brightness(1.8); } 100% { transform: scale(.2); opacity: 0; } }
+    @keyframes targetMiss { 0%, 30% { transform: translateX(0); } 42% { transform: translateX(-10px); } 54% { transform: translateX(9px); } 68% { transform: translateX(-5px); } 100% { opacity: .15; transform: scale(.76); } }
+    @keyframes levelFlash { 0% { opacity: 0; transform: scale(.82) translateY(12px); } 55% { opacity: 1; transform: scale(1.03); } 100% { opacity: 1; transform: scale(1); } }
+    @keyframes timerPulse { from { transform: scale(1); } to { transform: scale(1.045); } }
+
+    @media (max-width: 780px) {
+      .rule-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .rule-card.goal { grid-column: auto; }
+      .level-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .setup-shell { grid-template-columns: 1fr; max-width: 540px; }
+      .camera-stage { min-height: 265px; max-height: 38vh; }
+      .setup-copy { padding: 25px 28px 27px; }
+      .setup-brand { display: none; }
+      .game-brand { display: none; }
+      .game-hud { padding: 12px; }
+      .stat-card { min-width: 71px; padding: 8px 9px; }
+      .stat-card.lives { min-width: 81px; }
+      .stat-card.pick-time { min-width: 80px; }
+      .stat-card .stat-value { font-size: 16px; }
+      #livesValue { font-size: 13px; }
+      .instruction-wrap { top: 69px; }
+      .instruction-card { padding: 11px 14px; }
+      .round-status { left: 11px; bottom: 12px; }
+      .tracker-chip { right: 11px; bottom: 12px; }
+      .memory-prompt { padding: 22px 30px; }
+    }
+    @media (max-width: 455px) {
+      #menuScreen { padding: 15px; }
+      .menu-top { top: 16px; left: 18px; }
+      .menu-panel { padding: 32px 22px 28px; border-radius: 26px; }
+      .menu-title { font-size: 51px; }
+      .menu-subtitle { font-size: 14px; }
+      .rules-panel { padding: 20px 15px; border-radius: 22px; }
+      #rulesScreen { padding: 13px 10px 24px; }
+      .rules-wrap { padding: 0; }
+      .rules-mini-note { display: none; }
+      .rule-card { min-height: 124px; padding: 14px 11px; }
+      .rule-description { font-size: 11px; }
+      .quick-guide { gap: 7px 11px; font-size: 10px; }
+      .level-card { min-height: 75px; padding: 11px; }
+      #setupScreen { padding: 15px; }
+      .setup-title { font-size: 32px; }
+      .cal-steps { margin: 19px 0; }
+      .camera-stage { min-height: 240px; }
+      .tracker-chip { display: none; }
+      .round-status { font-size: 9px; }
+    }
+    @media (max-height: 700px) and (min-width: 781px) {
+      .rules-panel { padding-top: 22px; padding-bottom: 22px; }
+      .rule-card { min-height: 111px; padding: 11px; }
+      .rule-icon { margin-bottom: 4px; font-size: 23px; }
+      .rule-label { margin-bottom: 4px; }
+      .quick-guide { margin: 11px 0; padding: 9px; }
+      .level-overview { margin-bottom: 13px; }
+      .level-card { min-height: 66px; padding: 9px 11px; }
+      .rules-heading { margin-bottom: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main id="app" aria-live="polite">
+    <!-- START SCREEN: camera is intentionally inactive here. -->
+    <section id="menuScreen" class="screen active" aria-label="Target Rush start screen">
+      <div class="menu-top brand-name"><span class="brand-mark">🎯</span><span>TARGET RUSH</span></div>
+      <div class="menu-panel">
+        <div class="menu-target" aria-hidden="true"></div>
+        <div class="eyebrow">CAMERA REACTION ARCADE</div>
+        <h1 class="menu-title">TARGET<br>RUSH</h1>
+        <p class="menu-subtitle">Aim with your finger. Pinch to hit. Read the word, not its ink color — and choose before time runs out.</p>
+        <div class="menu-actions">
+          <button id="startButton" class="primary-button" type="button">START CHALLENGE <span class="arrow">→</span></button>
+          <button id="howButton" class="how-button" type="button">📜 &nbsp; HOW TO PLAY</button>
+        </div>
+        <p class="privacy-note"><span class="privacy-lock">●</span> Camera stays off until you press <b>I'M READY</b>.</p>
+      </div>
+    </section>
+
+    <!-- RULES SCREEN: shown before any getUserMedia call. -->
+    <section id="rulesScreen" class="screen" aria-label="Rules and how to play">
+      <div class="rules-wrap">
+        <nav class="rules-nav" aria-label="Rules navigation">
+          <button id="backToMenu" class="back-button" type="button">← &nbsp; MAIN MENU</button>
+          <span class="rules-mini-note">READ THIS IN UNDER 10 SECONDS</span>
+        </nav>
+        <article class="rules-panel">
+          <div class="rules-heading">
+            <div class="heading-line"></div>
+            <div>
+              <div class="rules-game-name">🎯 TARGET RUSH</div>
+              <h2 class="rules-title">📜 <span>RULES</span> &amp; HOW TO PLAY</h2>
+            </div>
+            <div class="heading-line right"></div>
+          </div>
+
+          <div class="rule-grid">
+            <div class="rule-card point">
+              <span class="rule-icon">👆</span><span class="rule-label">POINT</span>
+              <p class="rule-description">Move your index finger to aim.</p>
+            </div>
+            <div class="rule-card pinch">
+              <span class="rule-icon">🤏</span><span class="rule-label">PINCH</span>
+              <p class="rule-description">Bring thumb + index together to select.</p>
+            </div>
+            <div class="rule-card follow">
+              <span class="rule-icon">🧠</span><span class="rule-label">READ THE WORD</span>
+              <p class="rule-description">The ink color can try to trick you.</p>
+            </div>
+            <div class="rule-card wrong">
+              <span class="rule-icon">❌</span><span class="rule-label">WRONG = LOSE</span>
+              <p class="rule-description">Lose points and a life.</p>
+            </div>
+            <div class="rule-card lives">
+              <span class="rule-icon">❤️</span><span class="rule-label">3 LIVES</span>
+              <p class="rule-description">Don't lose all your lives.</p>
+            </div>
+            <div class="rule-card time">
+              <span class="rule-icon">⏱️</span><span class="rule-label">10 SEC / PICK</span>
+              <p class="rule-description">Time out and you lose a life.</p>
+            </div>
+            <div class="rule-card goal">
+              <span class="rule-icon">🏆</span><span class="rule-label">COMPLETE 3 LEVELS</span>
+              <p class="rule-description">Get the highest score possible!</p>
+            </div>
+          </div>
+
+          <div class="quick-guide" aria-label="Quick rule summary">
+            <span>👆 <b>AIM</b></span><span>🤏 <b>SELECT</b></span><span>👀 <b>READ WORD</b></span><span class="avoid">❌ AVOID INK</span>
+          </div>
+
+          <div class="level-overview" aria-label="Three level overview">
+            <div class="level-card l1"><span class="level-dot">🟢 LEVEL 1</span><p>Read the word, not the ink</p></div>
+            <div class="level-card l2"><span class="level-dot">🟡 LEVEL 2</span><p>Follow tricky instructions</p></div>
+            <div class="level-card l3"><span class="level-dot">🔴 LEVEL 3</span><p>Remember the previous target</p></div>
+            <div class="level-card total"><span class="level-dot">⏱️ PICK TIMER</span><p>10 seconds per target</p></div>
+          </div>
+
+          <div class="rules-action">
+            <button id="readyButton" class="primary-button ready-button" type="button">I'M READY <span class="arrow">→</span></button>
+            <p class="rules-reassurance">Your camera will be requested only after this button is pressed.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- Camera permission and calibration begin only after readyButton is pressed. -->
+    <section id="setupScreen" class="screen" aria-label="Camera calibration">
+      <div class="setup-brand brand-name"><span class="brand-mark">🎯</span><span>TARGET RUSH</span></div>
+      <div class="setup-shell">
+        <div class="camera-stage" id="cameraStage">
+          <video id="cameraVideo" muted playsinline aria-label="Your camera feed"></video>
+          <div id="videoPlaceholder" class="video-placeholder"><div><span class="camera-emoji">📷</span>WAITING FOR CAMERA</div></div>
+          <div class="camera-live-badge"><span class="live-dot"></span> CAMERA ON</div>
+          <div id="calibrationRing" class="calibration-ring" aria-hidden="true"></div>
+          <div class="camera-corners" aria-hidden="true"></div>
+        </div>
+        <div class="setup-copy">
+          <div id="setupStepLabel" class="setup-step-label">STEP 1 OF 3 · CAMERA PERMISSION</div>
+          <h1 id="setupTitle" class="setup-title">Let’s see your hand.</h1>
+          <p id="setupDescription" class="setup-description">Allow camera access. We use it only to track your finger while you play.</p>
+          <div class="cal-steps" aria-label="Calibration progress">
+            <div id="calStep1" class="cal-step active"><span class="step-number">1</span><span>Show one hand to the camera</span></div>
+            <div id="calStep2" class="cal-step"><span class="step-number">2</span><span>Point at the center target</span></div>
+            <div id="calStep3" class="cal-step"><span class="step-number">3</span><span>Pinch thumb + index together</span></div>
+          </div>
+          <div id="setupStatus" class="setup-status"><span class="status-spinner"></span><span>Requesting camera permission…</span></div>
+          <div class="setup-actions">
+            <button id="retryCamera" class="primary-button" type="button" hidden>RETRY CAMERA</button>
+            <button id="mouseFallback" class="quiet-button" type="button" hidden>USE MOUSE CONTROLS</button>
+          </div>
+          <p class="setup-privacy">No video is recorded or sent anywhere. Close this tab or return to the menu to turn the camera off.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="countdownScreen" class="screen" aria-label="Game countdown">
+      <div class="countdown-panel">
+        <div class="countdown-level">CALIBRATION COMPLETE</div>
+        <div id="countdownNumber">3</div>
+        <div id="countdownHelp" class="countdown-help">Get your hand ready to aim</div>
+      </div>
+    </section>
+
+    <section id="gameScreen" class="screen" aria-label="Target Rush game board">
+      <div class="game-grid" aria-hidden="true"></div>
+      <header class="game-hud">
+        <div class="game-brand brand-name"><span class="brand-mark">🎯</span><span>TARGET RUSH</span></div>
+        <div class="hud-stats">
+          <div id="pickTimerCard" class="stat-card pick-time"><span class="stat-label">PICK TIMER</span><span id="roundTimeValue" class="stat-value">10s</span></div>
+          <div class="stat-card score"><span class="stat-label">SCORE</span><span id="scoreValue" class="stat-value">0000</span></div>
+          <div class="stat-card lives"><span class="stat-label">LIVES</span><span id="livesValue" class="stat-value">❤️ ❤️ ❤️</span></div>
+        </div>
+      </header>
+      <div class="instruction-wrap">
+        <span id="levelTag" class="level-tag">🟢 LEVEL 1 · COLOR MATCH</span>
+        <div class="instruction-card"><span id="instructionKicker" class="instruction-kicker">YOUR TARGET</span><strong id="instructionText">HIT <em>GREEN</em></strong></div>
+      </div>
+      <div id="gameBoard" class="game-board">
+        <div id="targetLayer"></div>
+        <div id="memoryCurtain" class="memory-curtain" aria-hidden="true">
+          <div class="memory-prompt">
+            <small>MEMORIZE THIS COLOR</small><div id="memoryOrb" class="memory-color-orb"></div><b id="memoryName">PURPLE</b>
+          </div>
+        </div>
+        <div id="levelFlash" class="level-flash" aria-hidden="true">
+          <div class="flash-box"><span id="flashIcon" class="flash-icon">🟢</span><small id="flashOverline">LEVEL 1</small><b id="flashTitle">COLOR MATCH</b><p id="flashText">Hit the right color.</p></div>
+        </div>
+      </div>
+      <div class="round-status"><span id="roundProgress">TARGETS <strong>0 / 5</strong></span><span>•</span><span id="controlStatus">👆 POINT · 🤏 PINCH</span></div>
+      <div class="tracker-chip"><span class="hud-camera-frame"><video id="hudCamera" muted playsinline></video></span><span id="trackingStatus">HAND TRACKING</span></div>
+    </section>
+
+    <section id="endScreen" class="screen" aria-label="Game result">
+      <div class="end-card">
+        <span id="endIcon">🏆</span>
+        <div id="endOverline" class="end-overline">TARGET RUSH COMPLETE</div>
+        <h1 id="endTitle">NICE AIM!</h1>
+        <p id="endMessage">You cleared all three levels with style.</p>
+        <div class="end-score"><div><span>FINAL SCORE</span><b id="finalScore">0000</b></div><div><span>LEVEL REACHED</span><b id="finalLevel">3 / 3</b></div></div>
+        <div class="end-actions">
+          <button id="playAgain" class="primary-button" type="button">PLAY AGAIN <span class="arrow">→</span></button>
+          <button id="endMenu" class="how-button" type="button">RETURN TO MAIN MENU</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="handCursor" aria-hidden="true"></div>
+    <div id="toast" role="status"></div>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const $ = (id) => document.getElementById(id);
+      const screens = {
+        menu: $('menuScreen'), rules: $('rulesScreen'), setup: $('setupScreen'),
+        countdown: $('countdownScreen'), game: $('gameScreen'), end: $('endScreen')
+      };
+      const ui = {
+        cameraVideo: $('cameraVideo'), hudCamera: $('hudCamera'), videoPlaceholder: $('videoPlaceholder'),
+        cameraStage: $('cameraStage'), calibrationRing: $('calibrationRing'),
+        setupStepLabel: $('setupStepLabel'), setupTitle: $('setupTitle'), setupDescription: $('setupDescription'),
+        setupStatus: $('setupStatus'), retryCamera: $('retryCamera'), mouseFallback: $('mouseFallback'),
+        calSteps: [$('calStep1'), $('calStep2'), $('calStep3')],
+        countdownNumber: $('countdownNumber'), countdownHelp: $('countdownHelp'),
+        targetLayer: $('targetLayer'), gameBoard: $('gameBoard'), pickTimerCard: $('pickTimerCard'), roundTimeValue: $('roundTimeValue'), scoreValue: $('scoreValue'),
+        livesValue: $('livesValue'), levelTag: $('levelTag'), instructionKicker: $('instructionKicker'),
+        instructionText: $('instructionText'), roundProgress: $('roundProgress'), controlStatus: $('controlStatus'),
+        trackingStatus: $('trackingStatus'), handCursor: $('handCursor'), toast: $('toast'),
+        memoryCurtain: $('memoryCurtain'), memoryOrb: $('memoryOrb'), memoryName: $('memoryName'),
+        levelFlash: $('levelFlash'), flashIcon: $('flashIcon'), flashOverline: $('flashOverline'), flashTitle: $('flashTitle'), flashText: $('flashText'),
+        endIcon: $('endIcon'), endOverline: $('endOverline'), endTitle: $('endTitle'), endMessage: $('endMessage'), finalScore: $('finalScore'), finalLevel: $('finalLevel')
+      };
+
+      const COLORS = [
+        { id: 'green', name: 'GREEN', hex: '#49e7a0', shadow: 'rgba(73,231,160,.62)', emoji: '🟢' },
+        { id: 'blue', name: 'BLUE', hex: '#61baff', shadow: 'rgba(97,186,255,.62)', emoji: '🔵' },
+        { id: 'yellow', name: 'YELLOW', hex: '#ffd75b', shadow: 'rgba(255,215,91,.64)', emoji: '🟡' },
+        { id: 'red', name: 'RED', hex: '#ff667d', shadow: 'rgba(255,102,125,.61)', emoji: '🔴' },
+        { id: 'purple', name: 'PURPLE', hex: '#ae83ff', shadow: 'rgba(174,131,255,.64)', emoji: '🟣' },
+        { id: 'orange', name: 'ORANGE', hex: '#ff9a5e', shadow: 'rgba(255,154,94,.62)', emoji: '🟠' }
+      ];
+      const COLOR_BY_ID = Object.fromEntries(COLORS.map(color => [color.id, color]));
+      const LEVEL_GOALS = { 1: 5, 2: 6, 3: 5 };
+      const ROUND_TIME = 10;
+      const MEDIA_PIPE_URLS = [
+        'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js',
+        'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js'
+      ];
+
+      let activeScreen = 'menu';
+      let cameraStream = null;
+      let handTracker = null;
+      let handLoopActive = false;
+      let sendingFrame = false;
+      let trackerLoadPromise = null;
+      let calibrationStep = 0;
+      let calibrationHoldStarted = 0;
+      let calibrationFallbackTimer = null;
+      let countdownTimeout = null;
+      let levelTimeout = null;
+      let roundTimerFrame = null;
+      let toastTimeout = null;
+      let lastPinchAt = 0;
+      let wasPinching = false;
+      let usingMouse = false;
+      let handPresent = false;
+      let smoothedPointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+      let game = freshGame();
+
+      function freshGame() {
+        return {
+          active: false,
+          ending: false,
+          transitioning: false,
+          level: 1,
+          hits: 0,
+          score: 0,
+          lives: 3,
+          combo: 0,
+          required: null,
+          roundDeadline: 0,
+          roundLocked: false,
+          level2Mode: '',
+          memoryColor: null
+        };
+      }
+
+      function showScreen(name) {
+        Object.entries(screens).forEach(([key, screen]) => screen.classList.toggle('active', key === name));
+        activeScreen = name;
+        if (name !== 'game' && name !== 'setup') hideCursor();
+      }
+
+      function openRules() {
+        clearTransientTimers();
+        showScreen('rules');
+      }
+
+      function clearTransientTimers() {
+        if (countdownTimeout) { clearTimeout(countdownTimeout); countdownTimeout = null; }
+        if (levelTimeout) { clearTimeout(levelTimeout); levelTimeout = null; }
+        if (calibrationFallbackTimer) { clearTimeout(calibrationFallbackTimer); calibrationFallbackTimer = null; }
+        stopRoundTimer();
+      }
+
+      function setSetupStatus(text, type = 'loading') {
+        const icon = type === 'ok' ? '✓' : type === 'error' ? '!' : '<span class="status-spinner"></span>';
+        ui.setupStatus.innerHTML = `<span class="${type === 'ok' ? '' : type === 'error' ? '' : 'status-spinner'}">${type === 'loading' ? '' : icon}</span><span>${text}</span>`;
+        ui.setupStatus.style.borderColor = type === 'error' ? 'rgba(255,104,125,.35)' : type === 'ok' ? 'rgba(76,241,173,.35)' : 'rgba(99,233,255,.14)';
+        ui.setupStatus.style.color = type === 'error' ? '#ffc4cc' : type === 'ok' ? '#c7ffe5' : '#d9e6fb';
+      }
+
+      function setCalibrationStep(step) {
+        calibrationStep = step;
+        ui.calSteps.forEach((stepEl, i) => {
+          stepEl.classList.toggle('active', i === step);
+          stepEl.classList.toggle('done', i < step);
+          stepEl.querySelector('.step-number').textContent = i < step ? '✓' : String(i + 1);
+        });
+        const labels = [
+          ['STEP 1 OF 3 · HAND DETECTION', 'Show us your hand.', 'Hold one hand comfortably in the camera view.'],
+          ['STEP 2 OF 3 · AIM CHECK', 'Point to the center.', 'Move your index finger into the glowing center target.'],
+          ['STEP 3 OF 3 · PINCH CHECK', 'Now make a pinch.', 'Bring your thumb and index finger together.'],
+          ['CALIBRATION COMPLETE', 'You are locked in!', 'Starting the game now…']
+        ];
+        const [label, title, description] = labels[Math.min(step, 3)];
+        ui.setupStepLabel.textContent = label;
+        ui.setupTitle.textContent = title;
+        ui.setupDescription.textContent = description;
+        ui.calibrationRing.classList.toggle('in-range', false);
+      }
+
+      function resetSetupUI() {
+        usingMouse = false;
+        handPresent = false;
+        wasPinching = false;
+        ui.videoPlaceholder.style.display = 'grid';
+        ui.retryCamera.hidden = true;
+        ui.mouseFallback.hidden = true;
+        ui.calibrationRing.style.display = '';
+        ui.calibrationRing.classList.remove('in-range');
+        setCalibrationStep(0);
+        setSetupStatus('Requesting camera permission…', 'loading');
+      }
+
+      async function beginCameraFlow() {
+        clearTransientTimers();
+        stopGameLoop();
+        game.active = false;
+        resetSetupUI();
+        showScreen('setup');
+        await requestCamera();
+      }
+
+      async function requestCamera() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          handleCameraFailure('This browser does not support camera access.');
+          return;
+        }
+        setSetupStatus('Choose “Allow” when your browser asks for camera access.', 'loading');
+        try {
+          stopCamera();
+          cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false
+          });
+          ui.cameraVideo.srcObject = cameraStream;
+          ui.hudCamera.srcObject = cameraStream;
+          await Promise.all([ui.cameraVideo.play(), ui.hudCamera.play().catch(() => {})]);
+          ui.videoPlaceholder.style.display = 'none';
+          setCalibrationStep(0);
+          setSetupStatus('Camera ready — loading hand tracking…', 'loading');
+          try {
+            await initHandTracking();
+            setSetupStatus('Show one hand to the camera to begin.', 'loading');
+            scheduleCalibrationFallback();
+          } catch (trackerError) {
+            console.warn('Hand tracker unavailable:', trackerError);
+            setSetupStatus('Camera is ready, but hand tracking could not load. You can still try the mouse demo.', 'error');
+            ui.mouseFallback.hidden = false;
+            ui.retryCamera.hidden = false;
+          }
+        } catch (error) {
+          console.warn('Camera permission error:', error);
+          const message = error && error.name === 'NotAllowedError'
+            ? 'Camera permission was not allowed. Enable it and try again.'
+            : 'We could not start your camera. Check that no other app is using it.';
+          handleCameraFailure(message);
+        }
+      }
+
+      function handleCameraFailure(message) {
+        stopCamera();
+        ui.videoPlaceholder.style.display = 'grid';
+        ui.calibrationRing.style.display = 'none';
+        ui.retryCamera.hidden = false;
+        ui.mouseFallback.hidden = false;
+        setSetupStatus(message, 'error');
+        ui.setupStepLabel.textContent = 'CAMERA SETUP PAUSED';
+        ui.setupTitle.textContent = 'Camera not available.';
+        ui.setupDescription.textContent = 'Retry when ready, or test the game with mouse controls.';
+      }
+
+      function scheduleCalibrationFallback() {
+        if (calibrationFallbackTimer) clearTimeout(calibrationFallbackTimer);
+        calibrationFallbackTimer = setTimeout(() => {
+          if (activeScreen === 'setup' && calibrationStep < 3) {
+            ui.mouseFallback.hidden = false;
+          }
+        }, 8000);
+      }
+
+      function loadScript(src) {
+        return new Promise((resolve, reject) => {
+          if ([...document.scripts].some(script => script.src === src)) return resolve();
+          const script = document.createElement('script');
+          script.src = src;
+          script.async = true;
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error(`Unable to load ${src}`));
+          document.head.appendChild(script);
+        });
+      }
+
+      async function initHandTracking() {
+        if (handTracker) {
+          startHandLoop();
+          return;
+        }
+        if (!trackerLoadPromise) {
+          trackerLoadPromise = (async () => {
+            for (const source of MEDIA_PIPE_URLS) await loadScript(source);
+            if (!window.Hands) throw new Error('MediaPipe Hands library is unavailable');
+            handTracker = new window.Hands({
+              locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+            handTracker.setOptions({
+              maxNumHands: 1,
+              modelComplexity: 1,
+              minDetectionConfidence: 0.62,
+              minTrackingConfidence: 0.58,
+              selfieMode: true
+            });
+            handTracker.onResults(onHandResults);
+          })();
+        }
+        await trackerLoadPromise;
+        startHandLoop();
+      }
+
+      function startHandLoop() {
+        if (handLoopActive || !handTracker || !cameraStream) return;
+        handLoopActive = true;
+        const run = async () => {
+          if (!handLoopActive) return;
+          if (!sendingFrame && ui.cameraVideo.readyState >= 2) {
+            sendingFrame = true;
+            try { await handTracker.send({ image: ui.cameraVideo }); }
+            catch (error) { console.warn('Hand tracking frame error:', error); }
+            finally { sendingFrame = false; }
+          }
+          if (handLoopActive) requestAnimationFrame(run);
+        };
+        requestAnimationFrame(run);
+      }
+
+      function stopCamera() {
+        handLoopActive = false;
+        sendingFrame = false;
+        if (cameraStream) {
+          cameraStream.getTracks().forEach(track => track.stop());
+          cameraStream = null;
+        }
+        ui.cameraVideo.srcObject = null;
+        ui.hudCamera.srcObject = null;
+        handPresent = false;
+        hideCursor();
+      }
+
+      function onHandResults(results) {
+        const landmarks = results.multiHandLandmarks && results.multiHandLandmarks[0];
+        if (!landmarks) {
+          handPresent = false;
+          wasPinching = false;
+          if (activeScreen === 'setup' && calibrationStep === 0) setSetupStatus('Show one hand to the camera to begin.', 'loading');
+          if (activeScreen === 'game') {
+            ui.trackingStatus.textContent = 'HAND NOT FOUND';
+            ui.controlStatus.textContent = '👆 SHOW HAND TO AIM';
+          }
+          return;
+        }
+        handPresent = true;
+        const indexTip = landmarks[8];
+        const thumbTip = landmarks[4];
+        // MediaPipe is already in selfie coordinates, so use X directly.
+        // This keeps a rightward hand movement moving the game pointer right.
+        const rawX = indexTip.x * window.innerWidth;
+        const rawY = indexTip.y * window.innerHeight;
+        smoothedPointer.x += (rawX - smoothedPointer.x) * .38;
+        smoothedPointer.y += (rawY - smoothedPointer.y) * .38;
+        const pinchDistance = Math.hypot(indexTip.x - thumbTip.x, indexTip.y - thumbTip.y, (indexTip.z || 0) - (thumbTip.z || 0));
+        const pinching = pinchDistance < .058;
+        updateHandCursor(smoothedPointer.x, smoothedPointer.y, pinching);
+
+        if (activeScreen === 'setup') runCalibration(smoothedPointer.x, smoothedPointer.y, pinching);
+        if (activeScreen === 'game') {
+          ui.trackingStatus.textContent = pinching ? 'PINCH DETECTED' : 'HAND TRACKING';
+          ui.controlStatus.textContent = pinching ? '🤏 SELECTING…' : '👆 AIM · 🤏 PINCH';
+          const now = performance.now();
+          if (game.active && !game.roundLocked && pinching && !wasPinching && now - lastPinchAt > 380) {
+            lastPinchAt = now;
+            chooseTargetAt(smoothedPointer.x, smoothedPointer.y);
+          }
+        }
+        wasPinching = pinching;
+      }
+
+      function updateHandCursor(x, y, pinching) {
+        if (activeScreen !== 'setup' && activeScreen !== 'game') return;
+        ui.handCursor.style.display = 'block';
+        ui.handCursor.style.left = `${x}px`;
+        ui.handCursor.style.top = `${y}px`;
+        ui.handCursor.classList.toggle('pinching', pinching);
+      }
+
+      function hideCursor() {
+        ui.handCursor.style.display = 'none';
+        ui.handCursor.classList.remove('pinching');
+      }
+
+      function runCalibration(x, y, pinching) {
+        if (usingMouse || calibrationStep >= 3) return;
+        const now = performance.now();
+        if (calibrationStep === 0) {
+          setCalibrationStep(1);
+          calibrationHoldStarted = 0;
+          setSetupStatus('Hand found! Point your index into the center ring.', 'ok');
+          return;
+        }
+        if (calibrationStep === 1) {
+          const rect = ui.calibrationRing.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          const within = Math.hypot(x - cx, y - cy) < Math.min(rect.width, rect.height) * .72;
+          ui.calibrationRing.classList.toggle('in-range', within);
+          if (within) {
+            if (!calibrationHoldStarted) calibrationHoldStarted = now;
+            const left = Math.max(0, .55 - (now - calibrationHoldStarted) / 1000);
+            setSetupStatus(`Great aim — hold it there ${left ? `(${left.toFixed(1)}s)` : ''}`, 'ok');
+            if (now - calibrationHoldStarted > 560) {
+              setCalibrationStep(2);
+              calibrationHoldStarted = 0;
+              setSetupStatus('Nice. Now pinch thumb + index together.', 'loading');
+            }
+          } else {
+            calibrationHoldStarted = 0;
+            setSetupStatus('Move your index finger into the glowing center ring.', 'loading');
+          }
+          return;
+        }
+        if (calibrationStep === 2) {
+          if (pinching) {
+            if (!calibrationHoldStarted) calibrationHoldStarted = now;
+            const left = Math.max(0, .42 - (now - calibrationHoldStarted) / 1000);
+            setSetupStatus(`Pinch detected — hold ${left ? `(${left.toFixed(1)}s)` : ''}`, 'ok');
+            if (now - calibrationHoldStarted > 430) completeCalibration();
+          } else {
+            calibrationHoldStarted = 0;
+            setSetupStatus('Bring your thumb and index finger together.', 'loading');
+          }
+        }
+      }
+
+      function completeCalibration() {
+        if (calibrationStep >= 3) return;
+        clearTransientTimers();
+        setCalibrationStep(3);
+        setSetupStatus('Perfect. Get ready!', 'ok');
+        ui.calibrationRing.classList.add('in-range');
+        levelTimeout = setTimeout(startCountdown, 650);
+      }
+
+      function beginMouseMode() {
+        clearTransientTimers();
+        usingMouse = true;
+        calibrationStep = 3;
+        ui.calibrationRing.style.display = 'none';
+        ui.calSteps.forEach((stepEl) => { stepEl.classList.add('done'); stepEl.classList.remove('active'); stepEl.querySelector('.step-number').textContent = '✓'; });
+        ui.setupStepLabel.textContent = 'MOUSE CONTROLS READY';
+        ui.setupTitle.textContent = 'Practice mode ready.';
+        ui.setupDescription.textContent = 'Move your mouse to aim and click a target to select it.';
+        setSetupStatus('Starting mouse practice…', 'ok');
+        levelTimeout = setTimeout(startCountdown, 650);
+      }
+
+      function startCountdown() {
+        clearTransientTimers();
+        showScreen('countdown');
+        const phases = [
+          { number: '3', help: 'Get your hand ready to aim' },
+          { number: '2', help: 'Point your index finger' },
+          { number: '1', help: 'Pinch to select a target' },
+          { number: 'GO!', help: 'Hit the correct target!' }
+        ];
+        let phase = 0;
+        const showPhase = () => {
+          const current = phases[phase];
+          ui.countdownNumber.textContent = current.number;
+          ui.countdownHelp.textContent = current.help;
+          ui.countdownNumber.style.animation = 'none';
+          requestAnimationFrame(() => { ui.countdownNumber.style.animation = 'countdownPop .8s both'; });
+          phase += 1;
+          if (phase < phases.length) countdownTimeout = setTimeout(showPhase, 850);
+          else countdownTimeout = setTimeout(startGame, 720);
+        };
+        showPhase();
+      }
+
+      function startGame() {
+        game = freshGame();
+        game.active = true;
+        updateHUD();
+        showScreen('game');
+        showLevelIntro(1, () => setupLevel(1));
+      }
+
+      function showLevelIntro(level, callback) {
+        stopRoundTimer();
+        ui.roundTimeValue.textContent = '—';
+        const intros = {
+          1: { icon: '🟢', overline: 'LEVEL 1', title: 'STROOP MATCH', text: 'Read the color word — its ink may lie.' },
+          2: { icon: '🟡', overline: 'LEVEL 2', title: 'TRICKY RULES', text: 'Read the words before every pinch.' },
+          3: { icon: '🔴', overline: 'LEVEL 3', title: 'MEMORY MODE', text: 'Remember the color you just saw.' }
+        };
+        const intro = intros[level];
+        ui.flashIcon.textContent = intro.icon;
+        ui.flashOverline.textContent = intro.overline;
+        ui.flashTitle.textContent = intro.title;
+        ui.flashText.textContent = intro.text;
+        ui.levelFlash.classList.add('show');
+        game.transitioning = true;
+        levelTimeout = setTimeout(() => {
+          ui.levelFlash.classList.remove('show');
+          game.transitioning = false;
+          callback();
+        }, 1250);
+      }
+
+      function setupLevel(level) {
+        if (!game.active || game.ending) return;
+        game.level = level;
+        game.hits = 0;
+        game.combo = 0;
+        ui.memoryCurtain.classList.remove('show');
+        updateHUD();
+        if (level === 3) startMemoryRound();
+        else startStandardRound();
+      }
+
+      function randomColor(exclude = []) {
+        const candidates = COLORS.filter(color => !exclude.includes(color.id));
+        return candidates[Math.floor(Math.random() * candidates.length)];
+      }
+
+      function stroopWord(target, ink = randomColor([target.id])) {
+        // The word names the real answer; its displayed ink is deliberately a different color.
+        return `<em style="--required:${ink.hex}">${target.name}</em>`;
+      }
+
+      function startStandardRound() {
+        if (!game.active || game.transitioning) return;
+        stopRoundTimer();
+        const target = randomColor();
+        game.required = target.id;
+        game.roundLocked = false;
+        const goal = LEVEL_GOALS[game.level];
+        const levelConfig = game.level === 1
+          ? { tag: '🟢 LEVEL 1 · STROOP MATCH', kicker: 'READ THE WORD · IGNORE THE INK', text: `PICK ${stroopWord(target)}` }
+          : makeTrickyInstruction(target);
+        ui.levelTag.textContent = levelConfig.tag;
+        ui.instructionKicker.textContent = levelConfig.kicker;
+        ui.instructionText.innerHTML = levelConfig.text;
+        renderTargets(target.id, 6);
+        ui.roundProgress.innerHTML = `TARGETS <strong>${game.hits} / ${goal}</strong>`;
+        startRoundTimer();
+      }
+
+      function makeTrickyInstruction(target) {
+        const decoy = randomColor([target.id]);
+        const decoyInk = randomColor([decoy.id]);
+        const decoyWord = `<span style="color:${decoyInk.hex}">${decoy.name}</span>`;
+        const prompts = [
+          { kicker: 'READ THE WORD · IGNORE THE INK', text: `PICK ${stroopWord(target)} · NOT ${decoyWord}` },
+          { kicker: 'INK IS A TRICK · WORD IS TRUE', text: `PINCH THE ${stroopWord(target)} TARGET` },
+          { kicker: 'FOLLOW THE WORD', text: `IGNORE ${decoyWord} · PICK ${stroopWord(target)}` }
+        ];
+        const prompt = prompts[Math.floor(Math.random() * prompts.length)];
+        return { tag: '🟡 LEVEL 2 · FOLLOW THE WORD', ...prompt };
+      }
+
+      function startMemoryRound() {
+        if (!game.active || game.transitioning) return;
+        stopRoundTimer();
+        const memory = randomColor(game.memoryColor ? [game.memoryColor.id] : []);
+        const misleadingInk = randomColor([memory.id]);
+        game.memoryColor = memory;
+        game.required = memory.id;
+        game.roundLocked = true;
+        ui.levelTag.textContent = '🔴 LEVEL 3 · MEMORY MODE';
+        ui.instructionKicker.textContent = 'LOOK CLOSELY';
+        ui.instructionText.innerHTML = 'MEMORIZE THE <em style="--required:#c5aaff">COLOR</em>';
+        ui.memoryOrb.style.setProperty('--memory-color', memory.hex);
+        ui.memoryName.textContent = memory.name;
+        ui.memoryName.style.color = misleadingInk.hex;
+        ui.memoryCurtain.classList.add('show');
+        ui.roundProgress.innerHTML = `MEMORY <strong>${game.hits} / ${LEVEL_GOALS[3]}</strong>`;
+        levelTimeout = setTimeout(() => {
+          if (!game.active) return;
+          ui.memoryCurtain.classList.remove('show');
+          ui.instructionKicker.textContent = 'MEMORY CHECK · 10 SECONDS';
+          ui.instructionText.innerHTML = 'HIT THE COLOR YOU JUST SAW';
+          game.roundLocked = false;
+          renderTargets(memory.id, 6);
+          startRoundTimer();
+        }, 1100);
+      }
+
+      function renderTargets(requiredId, count) {
+        ui.targetLayer.replaceChildren();
+        const colors = [COLOR_BY_ID[requiredId]];
+        while (colors.length < count) colors.push(randomColor(colors.map(c => c.id)));
+        // Shuffle targets so the target isn't predictably first.
+        for (let i = colors.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [colors[i], colors[j]] = [colors[j], colors[i]];
+        }
+        const spots = makeTargetSpots(count);
+        colors.forEach((color, index) => {
+          const target = document.createElement('button');
+          target.type = 'button';
+          target.className = 'target';
+          target.dataset.color = color.id;
+          target.setAttribute('aria-label', `${color.name} target`);
+          target.style.left = `${spots[index].x}%`;
+          target.style.top = `${spots[index].y}%`;
+          target.style.transform = `translate(-50%, -50%) scale(${spots[index].scale})`;
+          target.style.setProperty('--target', color.hex);
+          target.style.setProperty('--target-shadow', color.shadow);
+          target.style.animationDelay = `${index * 40}ms, ${index * 130}ms`;
+          target.addEventListener('click', () => hitTarget(target, color.id));
+          ui.targetLayer.appendChild(target);
+        });
+      }
+
+      function makeTargetSpots(count) {
+        const spots = [];
+        const minDistance = window.innerWidth < 600 ? 25 : 18;
+        let attempts = 0;
+        while (spots.length < count && attempts < 150) {
+          attempts += 1;
+          const candidate = {
+            x: 13 + Math.random() * 74,
+            y: 30 + Math.random() * 56,
+            scale: .88 + Math.random() * .2
+          };
+          const acceptable = spots.every(spot => Math.hypot((spot.x - candidate.x) * 1.25, spot.y - candidate.y) > minDistance);
+          if (acceptable) spots.push(candidate);
+        }
+        const fallback = [{x:18,y:43,scale:1},{x:36,y:72,scale:.93},{x:50,y:36,scale:1},{x:67,y:72,scale:.93},{x:82,y:43,scale:1},{x:50,y:83,scale:.9}];
+        while (spots.length < count) spots.push(fallback[spots.length]);
+        return spots;
+      }
+
+      function chooseTargetAt(x, y) {
+        const el = document.elementFromPoint(x, y);
+        const target = el && el.closest && el.closest('.target');
+        if (target) hitTarget(target, target.dataset.color);
+        else {
+          showToast('Aim at a target first', '');
+        }
+      }
+
+      function hitTarget(element, colorId) {
+        if (!game.active || game.ending || game.transitioning || game.roundLocked || element.classList.contains('hit') || element.classList.contains('miss')) return;
+        game.roundLocked = true;
+        stopRoundTimer();
+        const correct = colorId === game.required;
+        if (correct) resolveCorrect(element);
+        else resolveWrong(element);
+      }
+
+      function resolveCorrect(element) {
+        element.classList.add('hit');
+        game.hits += 1;
+        game.combo += 1;
+        const bonus = Math.min((game.combo - 1) * 15, 60);
+        game.score += 100 + bonus;
+        showToast(bonus ? `✓ PERFECT +${100 + bonus}` : '✓ CORRECT +100', 'good');
+        updateHUD();
+        levelTimeout = setTimeout(() => {
+          if (!game.active) return;
+          if (game.hits >= LEVEL_GOALS[game.level]) advanceLevel();
+          else if (game.level === 3) startMemoryRound();
+          else startStandardRound();
+        }, 360);
+      }
+
+      function resolveWrong(element) {
+        element.classList.add('miss');
+        game.combo = 0;
+        game.lives -= 1;
+        game.score = Math.max(0, game.score - 75);
+        showToast('✕ WRONG TARGET · -75 & -1 LIFE', 'bad');
+        updateHUD();
+        levelTimeout = setTimeout(() => {
+          if (!game.active) return;
+          if (game.lives <= 0) endGame(false, 'lives');
+          else if (game.level === 3) {
+            game.roundLocked = false;
+            renderTargets(game.required, 6);
+            startRoundTimer();
+          } else {
+            game.roundLocked = false;
+            renderTargets(game.required, 6);
+            startRoundTimer();
+          }
+        }, 570);
+      }
+
+      function advanceLevel() {
+        if (game.level >= 3) {
+          endGame(true, 'complete');
+          return;
+        }
+        game.transitioning = true;
+        ui.targetLayer.replaceChildren();
+        const nextLevel = game.level + 1;
+        showLevelIntro(nextLevel, () => setupLevel(nextLevel));
+      }
+
+      function startRoundTimer() {
+        stopRoundTimer();
+        if (!game.active || game.roundLocked || game.ending) return;
+        game.roundDeadline = performance.now() + ROUND_TIME * 1000;
+        const tick = () => {
+          if (!game.active || game.roundLocked || game.ending) return;
+          const remaining = Math.max(0, game.roundDeadline - performance.now());
+          const seconds = Math.ceil(remaining / 1000);
+          ui.roundTimeValue.textContent = `${seconds}s`;
+          ui.pickTimerCard.classList.toggle('urgent', seconds <= 3);
+          if (remaining <= 0) {
+            roundTimerFrame = null;
+            game.roundDeadline = 0;
+            resolveRoundTimeout();
+            return;
+          }
+          roundTimerFrame = requestAnimationFrame(tick);
+        };
+        tick();
+      }
+
+      function stopRoundTimer() {
+        if (roundTimerFrame !== null) {
+          cancelAnimationFrame(roundTimerFrame);
+          roundTimerFrame = null;
+        }
+        game.roundDeadline = 0;
+        ui.pickTimerCard && ui.pickTimerCard.classList.remove('urgent');
+      }
+
+      function resolveRoundTimeout() {
+        if (!game.active || game.roundLocked || game.ending) return;
+        game.roundLocked = true;
+        game.combo = 0;
+        game.lives -= 1;
+        [...ui.targetLayer.querySelectorAll('.target')].forEach(target => target.classList.add('miss'));
+        showToast('⌛ TIME OUT · -1 LIFE', 'bad');
+        updateHUD();
+        levelTimeout = setTimeout(() => {
+          if (!game.active) return;
+          if (game.lives <= 0) endGame(false, 'lives');
+          else if (game.level === 3) startMemoryRound();
+          else startStandardRound();
+        }, 600);
+      }
+
+      function stopGameLoop() {
+        stopRoundTimer();
+        if (levelTimeout) { clearTimeout(levelTimeout); levelTimeout = null; }
+      }
+
+      function updateHUD() {
+        ui.scoreValue.textContent = String(game.score).padStart(4, '0');
+        ui.livesValue.textContent = Array.from({ length: 3 }, (_, i) => i < game.lives ? '❤️' : '♡').join(' ');
+        const goal = LEVEL_GOALS[game.level] || LEVEL_GOALS[3];
+        ui.roundProgress.innerHTML = `${game.level === 3 ? 'MEMORY' : 'TARGETS'} <strong>${game.hits} / ${goal}</strong>`;
+      }
+
+      function endGame(won, reason) {
+        if (game.ending) return;
+        game.ending = true;
+        game.active = false;
+        clearTransientTimers();
+        stopGameLoop();
+        ui.targetLayer.replaceChildren();
+        ui.memoryCurtain.classList.remove('show');
+        hideCursor();
+        const titles = won
+          ? { icon: '🏆', overline: 'TARGET RUSH COMPLETE', title: 'NICE AIM!', message: 'You cleared all three levels with style.' }
+          : { icon: '💥', overline: 'OUT OF LIVES', title: 'SO CLOSE!', message: 'Wrong targets cost all three lives. Read the instruction and try again.' };
+        ui.endIcon.textContent = titles.icon;
+        ui.endOverline.textContent = titles.overline;
+        ui.endTitle.textContent = titles.title;
+        ui.endMessage.textContent = titles.message;
+        ui.finalScore.textContent = String(game.score).padStart(4, '0');
+        ui.finalLevel.textContent = won ? '3 / 3' : `${game.level} / 3`;
+        showScreen('end');
+      }
+
+      function showToast(message, kind) {
+        if (toastTimeout) clearTimeout(toastTimeout);
+        ui.toast.textContent = message;
+        ui.toast.className = `${kind} show`.trim();
+        toastTimeout = setTimeout(() => { ui.toast.className = ''; }, 1050);
+      }
+
+      function returnToMenu() {
+        clearTransientTimers();
+        stopGameLoop();
+        game.active = false;
+        game.ending = false;
+        stopCamera();
+        ui.targetLayer.replaceChildren();
+        ui.memoryCurtain.classList.remove('show');
+        ui.levelFlash.classList.remove('show');
+        showScreen('menu');
+      }
+
+      // Navigation: rules are always the gate before camera access.
+      $('startButton').addEventListener('click', openRules);
+      $('howButton').addEventListener('click', openRules);
+      $('backToMenu').addEventListener('click', returnToMenu);
+      $('readyButton').addEventListener('click', beginCameraFlow);
+      ui.retryCamera.addEventListener('click', requestCamera);
+      ui.mouseFallback.addEventListener('click', beginMouseMode);
+      $('playAgain').addEventListener('click', () => { stopCamera(); openRules(); });
+      $('endMenu').addEventListener('click', returnToMenu);
+
+      // Mouse is an intentional fallback and works alongside camera tracking.
+      window.addEventListener('pointermove', (event) => {
+        if ((activeScreen === 'game' || activeScreen === 'setup') && (usingMouse || !handPresent)) {
+          updateHandCursor(event.clientX, event.clientY, false);
+          if (activeScreen === 'game') {
+            ui.controlStatus.textContent = usingMouse ? '🖱 MOVE · CLICK TO SELECT' : '👆 SHOW HAND · OR CLICK';
+            if (!handPresent) ui.trackingStatus.textContent = usingMouse ? 'MOUSE MODE' : 'HAND NOT FOUND';
+          }
+        }
+      });
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && activeScreen !== 'menu') returnToMenu();
+      });
+      window.addEventListener('beforeunload', stopCamera);
+    })();
+  </script>
+</body>
+</html>
